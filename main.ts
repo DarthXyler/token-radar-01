@@ -3,7 +3,8 @@
 // Reads the sealed snapshot (/input/snapshot.json, or --input <file|dir>) and ranks every protocol that
 // records no token with dashboard/model.js, the same file the page runs, so the board and the page share
 // one model. Writes to /output (MAKEFUN_OUTPUT_DIR outside the grader):
-//   board.json    the ranked rows, each with its factors, comparables and farm plan
+//   board.json    the ranked rows (launch multiple and its terms, token odds, P25-P75, comparables, farm verdict
+//                 and day-by-day steps), the held-out term tables, range coverage and the 758-protocol accounting
 //   data.js       the snapshot's raw fields the page needs, plus [slug, implied value] from board.json
 //                 so the page can check that its own recomputation matches
 //   dashboard/    the static page (index.html, app.css, app.js, model.js)
@@ -71,7 +72,12 @@ const issue = boardIssue(rows, snapshot);
 if (issue !== null) fail(`the board would fail the gate: ${issue}`);
 
 mkdirSync(out, { recursive: true });
-writeFileSync(join(out, 'board.json'), `${JSON.stringify({ model: Model.MODEL.version, as_of: snapshot.as_of, rows })}\n`);
+const evidence = Model.evidence(board.core);
+writeFileSync(join(out, 'board.json'), `${JSON.stringify({
+  model: Model.MODEL.version, as_of: snapshot.as_of, assumptions: board.opts, groups: board.groups,
+  evidence: { value_terms: evidence.value, odds_terms: evidence.odds, range_coverage: evidence.coverage, traded_n: evidence.traded_n, base_rate: evidence.base_rate },
+  rows,
+})}\n`);
 const data = {
   as_of: snapshot.as_of,
   watchlist: snapshot.watchlist,
@@ -97,4 +103,4 @@ for (const n of shots) if (!IMAGE_NAME.test(n)) fail(`screenshots/${n} is not a 
 writeFileSync(join(out, 'dossier.json'), buildDossier(out, { text_max_bytes: 65_536, screenshots: { max: 4, max_bytes: 524_288 }, dashboard: { max_files: 400, max_bytes: 4_194_304 } }));
 
 const early = rows.filter((r) => (r as unknown as { tier: string }).tier === 'early').length;
-process.stdout.write(`token radar: ${snapshot.protocols.length} protocols, ${board.table.traded_n} traded peers, ${rows.length} rows (${rows.length - early} watchlist, ${early} early); wrote board.json, data.js, dashboard (${pages.length}), screenshots (${shots.length}), dossier.json to ${out}\n`);
+process.stdout.write(`token radar: ${snapshot.protocols.length} protocols, ${evidence.traded_n} traded peers (value terms kept: ${board.core.value.kept.join(', ') || 'none'}; odds terms kept: ${board.core.odds.kept.join(', ') || 'none'}), ${rows.length} rows (${rows.length - early} watchlist, ${early} early); wrote board.json, data.js, dashboard (${pages.length}), screenshots (${shots.length}), dossier.json to ${out}\n`);
